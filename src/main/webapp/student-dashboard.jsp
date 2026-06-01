@@ -28,7 +28,7 @@
     List<Borrow> myBorrows = (List<Borrow>) request.getAttribute("myBorrows");
     Integer totalBooks = (Integer) request.getAttribute("totalBooks");
     Integer availableBooks = (Integer) request.getAttribute("availableBooks");
-    Integer reservedByUser = (Integer) request.getAttribute("reservedByUser");
+    Integer borrowedByUser = (Integer) request.getAttribute("borrowedByUser");
     Integer overdueByUser = (Integer) request.getAttribute("overdueByUser");
     List<String> categories = (List<String>) request.getAttribute("categories");
 
