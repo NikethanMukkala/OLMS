@@ -6,6 +6,10 @@ import javax.mail.*;
 import javax.mail.internet.*;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 public class EmailUtility {
     
@@ -14,10 +18,12 @@ public class EmailUtility {
     // Credentials loaded from configuration
     private static String SENDER_EMAIL;
     private static String APP_PASSWORD;
+    private static String BREVO_API_KEY;
 
     static {
         SENDER_EMAIL = System.getenv("EMAIL_USER");
         APP_PASSWORD = System.getenv("EMAIL_PASSWORD");
+        BREVO_API_KEY = System.getenv("BREVO_API_KEY");
 
         try (java.io.InputStream input = EmailUtility.class.getClassLoader().getResourceAsStream("config.properties")) {
             java.util.Properties props = new java.util.Properties();
@@ -35,6 +41,15 @@ public class EmailUtility {
             logger.info("Recipient: {}", recipientEmail);
             logger.info("OTP: {}", otp);
             logger.info("===================================");
+
+            if (BREVO_API_KEY != null && !BREVO_API_KEY.trim().isEmpty()) {
+                try {
+                    sendViaBrevoApi(recipientEmail, "OLMS - Your Login OTP", "Your OTP for OLMS login is: " + otp + "\n\nThis OTP is valid for 5 minutes.", null, null);
+                } catch (Exception e) {
+                    logger.error("Failed to send OTP via Brevo API: {}", e.getMessage(), e);
+                }
+                return;
+            }
 
             Properties props = getMailProperties();
             final String safePassword = APP_PASSWORD.replace(" ", "");
@@ -65,6 +80,15 @@ public class EmailUtility {
 
     public static void sendEmail(String recipientEmail, String subject, String body) {
         CompletableFuture.runAsync(() -> {
+            if (BREVO_API_KEY != null && !BREVO_API_KEY.trim().isEmpty()) {
+                try {
+                    sendViaBrevoApi(recipientEmail, subject, body, null, null);
+                } catch (Exception e) {
+                    logger.error("Failed to send email via Brevo API: {}", e.getMessage(), e);
+                }
+                return;
+            }
+
             Properties props = getMailProperties();
             final String safePassword = APP_PASSWORD.replace(" ", "");
 
@@ -92,6 +116,15 @@ public class EmailUtility {
 
     public static void sendEmailWithAttachment(String recipientEmail, String subject, String body, byte[] attachmentData, String attachmentName) {
         CompletableFuture.runAsync(() -> {
+            if (BREVO_API_KEY != null && !BREVO_API_KEY.trim().isEmpty()) {
+                try {
+                    sendViaBrevoApi(recipientEmail, subject, body, attachmentData, attachmentName);
+                } catch (Exception e) {
+                    logger.error("Failed to send email with attachment via Brevo API: {}", e.getMessage(), e);
+                }
+                return;
+            }
+
             Properties props = getMailProperties();
             final String safePassword = APP_PASSWORD.replace(" ", "");
 
@@ -128,6 +161,58 @@ public class EmailUtility {
                 logger.error("Failed to send email with attachment to {}: {}", recipientEmail, e.getMessage(), e);
             }
         });
+    }
+
+    private static void sendViaBrevoApi(String recipientEmail, String subject, String body, byte[] attachmentData, String attachmentName) throws Exception {
+        URL url = new URL("https://api.brevo.com/v3/smtp/email");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("api-key", BREVO_API_KEY);
+        conn.setDoOutput(true);
+
+        com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
+        
+        com.google.gson.JsonObject sender = new com.google.gson.JsonObject();
+        sender.addProperty("email", SENDER_EMAIL != null && !SENDER_EMAIL.isEmpty() ? SENDER_EMAIL : "noreply@library.com");
+        sender.addProperty("name", "OLMS");
+        payload.add("sender", sender);
+        
+        com.google.gson.JsonArray to = new com.google.gson.JsonArray();
+        com.google.gson.JsonObject recipient = new com.google.gson.JsonObject();
+        recipient.addProperty("email", recipientEmail);
+        to.add(recipient);
+        payload.add("to", to);
+        
+        payload.addProperty("subject", subject);
+        payload.addProperty("textContent", body);
+
+        if (attachmentData != null && attachmentName != null) {
+            com.google.gson.JsonArray attachments = new com.google.gson.JsonArray();
+            com.google.gson.JsonObject attachment = new com.google.gson.JsonObject();
+            attachment.addProperty("content", java.util.Base64.getEncoder().encodeToString(attachmentData));
+            attachment.addProperty("name", attachmentName);
+            attachments.add(attachment);
+            payload.add("attachment", attachments);
+        }
+
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(payload.toString().getBytes(StandardCharsets.UTF_8));
+        }
+
+        int responseCode = conn.getResponseCode();
+        if (responseCode >= 200 && responseCode < 300) {
+            logger.info("Email successfully sent via Brevo API to {}", recipientEmail);
+        } else {
+            java.io.InputStream errorStream = conn.getErrorStream();
+            if (errorStream != null) {
+                java.util.Scanner s = new java.util.Scanner(errorStream).useDelimiter("\\A");
+                String errorResponse = s.hasNext() ? s.next() : "";
+                logger.error("Brevo API Error: {} - {}", responseCode, errorResponse);
+            } else {
+                logger.error("Brevo API Error with response code: {}", responseCode);
+            }
+        }
     }
 
     private static Properties getMailProperties() {
