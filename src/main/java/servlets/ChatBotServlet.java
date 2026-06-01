@@ -32,11 +32,13 @@ public class ChatBotServlet extends HttpServlet {
     private BookDAO bookDAO;
     private BorrowDAO borrowDAO;
     private OpenAIClient aiClient;
+    private OpenAIClient geminiClient;
     private Gson gson;
     
     private String apiKey;
     private String modelName;
     private String baseUrl;
+    private String geminiModelName;
 
     @Override
     public void init() throws ServletException {
@@ -49,6 +51,9 @@ public class ChatBotServlet extends HttpServlet {
         modelName = System.getenv("GROQ_MODEL");
         baseUrl = System.getenv("GROQ_BASE_URL");
 
+        String geminiApiKey = System.getenv("GEMINI_API_KEY");
+        geminiModelName = System.getenv("GEMINI_MODEL");
+
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("config.properties")) {
             if (is != null) {
                 Properties props = new Properties();
@@ -56,6 +61,7 @@ public class ChatBotServlet extends HttpServlet {
                 if (apiKey == null) apiKey = props.getProperty("groq.api.key", "");
                 if (modelName == null) modelName = props.getProperty("groq.model", "llama-3.1-8b-instant");
                 if (baseUrl == null) baseUrl = props.getProperty("groq.base_url", "https://api.groq.com/openai/v1/chat/completions");
+                if (geminiApiKey == null) geminiApiKey = props.getProperty("gemini.api.key", "");
             }
         } catch (Exception e) {
             logger.error("Failed to load config", e);
@@ -63,8 +69,12 @@ public class ChatBotServlet extends HttpServlet {
 
         if (modelName == null) modelName = "llama-3.1-8b-instant";
         if (baseUrl == null) baseUrl = "https://api.groq.com/openai/v1/chat/completions";
+        if (geminiModelName == null) geminiModelName = "gemini-1.5-flash";
 
         aiClient = new OpenAIClient(apiKey, baseUrl);
+        if (geminiApiKey != null && !geminiApiKey.isEmpty()) {
+            geminiClient = new OpenAIClient(geminiApiKey, "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+        }
     }
 
     @Override
@@ -170,9 +180,32 @@ public class ChatBotServlet extends HttpServlet {
 
             int maxIterations = 5;
             for (int i = 0; i < maxIterations; i++) {
-                String requestBody = buildOpenAIRequest(messages);
-                String rawResponse = aiClient.post(requestBody);
-                
+                String requestBody = buildOpenAIRequest(messages, modelName);
+                String rawResponse = null;
+                boolean useFallback = false;
+
+                try {
+                    rawResponse = aiClient.post(requestBody);
+                    JsonElement parsedRaw = JsonParser.parseString(rawResponse);
+                    if (parsedRaw.isJsonObject() && parsedRaw.getAsJsonObject().has("error")) {
+                        logger.warn("Primary API Error: " + rawResponse);
+                        useFallback = true;
+                    }
+                } catch (Exception e) {
+                    logger.warn("Primary API Failed", e);
+                    useFallback = true;
+                }
+
+                if (useFallback) {
+                    if (geminiClient != null) {
+                        logger.info("Falling back to Gemini API...");
+                        requestBody = buildOpenAIRequest(messages, geminiModelName);
+                        rawResponse = geminiClient.post(requestBody);
+                    } else {
+                        if (rawResponse == null) return "❌ API Error: Connection failed and no fallback configured.";
+                    }
+                }
+
                 JsonElement parsedRaw = JsonParser.parseString(rawResponse);
                 if (!parsedRaw.isJsonObject()) return "❌ API returned unexpected non-JSON response: " + rawResponse;
                 JsonObject aiResp = parsedRaw.getAsJsonObject();
@@ -273,9 +306,9 @@ public class ChatBotServlet extends HttpServlet {
     // ─────────────────────────────────────────────────────────────
     // BUILD OPENAI REQUEST
     // ─────────────────────────────────────────────────────────────
-    private String buildOpenAIRequest(JsonArray messages) {
+    private String buildOpenAIRequest(JsonArray messages, String targetModel) {
         JsonObject root = new JsonObject();
-        root.addProperty("model", modelName);
+        root.addProperty("model", targetModel);
         root.addProperty("temperature", 0.6);
         root.addProperty("top_p", 0.7);
         root.addProperty("max_tokens", 1024);
