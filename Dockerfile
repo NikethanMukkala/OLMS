@@ -14,6 +14,9 @@ FROM tomcat:9-jdk11
 RUN rm -rf /usr/local/tomcat/webapps/*
 
 # Place the compiled war from the build container directly into the webapps directory as ROOT (default app context)
+# Disable Tomcat shutdown port to stop health check warnings on Render
+RUN sed -i 's/port="8005"/port="-1"/g' /usr/local/tomcat/conf/server.xml
+
 COPY --from=build /app/target/olms.war /usr/local/tomcat/webapps/ROOT.war
 
 EXPOSE 8080
