@@ -45,19 +45,26 @@ public class ChatBotServlet extends HttpServlet {
         gson = new GsonBuilder().setPrettyPrinting().create();
 
         // Load config
+        apiKey = System.getenv("GROQ_API_KEY");
+        modelName = System.getenv("GROQ_MODEL");
+        baseUrl = System.getenv("GROQ_BASE_URL");
+
         try (InputStream is = getClass().getClassLoader().getResourceAsStream("config.properties")) {
             if (is != null) {
                 Properties props = new Properties();
                 props.load(is);
-                apiKey = props.getProperty("groq.api.key", "");
-                modelName = props.getProperty("groq.model", "llama-3.1-8b-instant");
-                baseUrl = props.getProperty("groq.base_url", "https://api.groq.com/openai/v1/chat/completions");
-                
-                aiClient = new OpenAIClient(apiKey, baseUrl);
+                if (apiKey == null) apiKey = props.getProperty("groq.api.key", "");
+                if (modelName == null) modelName = props.getProperty("groq.model", "llama-3.1-8b-instant");
+                if (baseUrl == null) baseUrl = props.getProperty("groq.base_url", "https://api.groq.com/openai/v1/chat/completions");
             }
         } catch (Exception e) {
-            logger.error("Failed to initialize OpenAI Client / Load config", e);
+            logger.error("Failed to load config", e);
         }
+
+        if (modelName == null) modelName = "llama-3.1-8b-instant";
+        if (baseUrl == null) baseUrl = "https://api.groq.com/openai/v1/chat/completions";
+
+        aiClient = new OpenAIClient(apiKey, baseUrl);
     }
 
     @Override
@@ -108,7 +115,7 @@ public class ChatBotServlet extends HttpServlet {
         }
 
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("YOUR_KEY_HERE")) {
-            out.print("{\"reply\":\"⚙️ AI API key is not configured. Please add your Groq key to config.properties\"}");
+            out.print("{\"reply\":\"⚙️ AI API key is not configured. Please add the GROQ_API_KEY environment variable.\"}");
             return;
         }
 

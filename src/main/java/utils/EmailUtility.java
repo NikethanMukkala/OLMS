@@ -16,11 +16,14 @@ public class EmailUtility {
     private static String APP_PASSWORD;
 
     static {
+        SENDER_EMAIL = System.getenv("EMAIL_USER");
+        APP_PASSWORD = System.getenv("EMAIL_PASSWORD");
+
         try (java.io.InputStream input = EmailUtility.class.getClassLoader().getResourceAsStream("config.properties")) {
             java.util.Properties props = new java.util.Properties();
             if (input != null) props.load(input);
-            SENDER_EMAIL = props.getProperty("email.user", "");
-            APP_PASSWORD = props.getProperty("email.password", "");
+            if (SENDER_EMAIL == null) SENDER_EMAIL = props.getProperty("email.user", "");
+            if (APP_PASSWORD == null) APP_PASSWORD = props.getProperty("email.password", "");
         } catch (Exception e) {
             logger.error("Failed to load email config: {}", e.getMessage(), e);
         }
