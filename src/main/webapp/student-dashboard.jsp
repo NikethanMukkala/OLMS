@@ -172,10 +172,10 @@
                     </div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon warning">📅</div>
+                    <div class="stat-icon warning">📖</div>
                     <div class="stat-info">
-                        <h3><%= reservedByUser != null ? reservedByUser : 0 %></h3>
-                        <p>Reserved by Me</p>
+                        <h3><%= borrowedByUser != null ? borrowedByUser : 0 %></h3>
+                        <p>Borrowed Books</p>
                     </div>
                 </div>
                 <div class="stat-card">

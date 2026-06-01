@@ -142,7 +142,7 @@ public class BookServlet extends HttpServlet {
 
         int totalBooks = bookDAO.getTotalBooksCount();
         int availableBooks = bookDAO.getAvailableBooksCount();
-        int reservedByUser = borrowDAO.getReservedBooksCountByUser(userId);
+        int borrowedByUser = borrowDAO.getBorrowedBooksCountOnlyByUser(userId);
         int overdueByUser = borrowDAO.getOverdueBooksCountByUser(userId);
         List<String> categories = bookDAO.getAllCategories();
 
@@ -151,7 +151,7 @@ public class BookServlet extends HttpServlet {
 
         request.setAttribute("totalBooks", totalBooks);
         request.setAttribute("availableBooks", availableBooks);
-        request.setAttribute("reservedByUser", reservedByUser);
+        request.setAttribute("borrowedByUser", borrowedByUser);
         request.setAttribute("overdueByUser", overdueByUser);
         request.setAttribute("categories", categories);
         

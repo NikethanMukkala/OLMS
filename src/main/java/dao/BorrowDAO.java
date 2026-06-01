@@ -180,7 +180,7 @@ public class BorrowDAO {
                     if (overdue < 0) overdue = 0;
                     
                     borrow.setDaysOverdue(overdue);
-                    borrow.setFineAmount(overdue * 10.0);
+                    borrow.setFineAmount(overdue * 1.0);
                     
                     list.add(borrow);
                 }
@@ -224,7 +224,7 @@ public class BorrowDAO {
                     if (overdue < 0) overdue = 0;
                     
                     borrow.setDaysOverdue(overdue);
-                    borrow.setFineAmount(overdue * 10.0);
+                    borrow.setFineAmount(overdue * 1.0);
                     return borrow;
                 }
             }
@@ -236,6 +236,20 @@ public class BorrowDAO {
 
     public int getBorrowCountByUser(String userId) {
         String sql = "SELECT COUNT(*) FROM borrows WHERE user_id = ? AND status IN ('RESERVED', 'BORROWED')";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
+    }
+
+    public int getBorrowedBooksCountOnlyByUser(String userId) {
+        String sql = "SELECT COUNT(*) FROM borrows WHERE user_id = ? AND status = 'BORROWED'";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, userId);
@@ -261,7 +275,7 @@ public class BorrowDAO {
                     long endTime = rs.getDate("return_date") != null ? rs.getDate("return_date").getTime() : now;
                     long overdueDays = (long) Math.ceil((endTime - due) / (1000.0 * 60 * 60 * 24));
                     if (overdueDays > 0) {
-                        total += overdueDays * 10.0;
+                        total += overdueDays * 1.0;
                     }
                 }
             }
@@ -296,7 +310,7 @@ public class BorrowDAO {
             conn.setAutoCommit(false);
             try {
                 // Generate Fines
-                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT ?, ?, DATEDIFF(CURDATE(), ?) * 10 WHERE DATEDIFF(CURDATE(), ?) > 0";
+                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT ?, ?, DATEDIFF(CURDATE(), ?) * 1 WHERE DATEDIFF(CURDATE(), ?) > 0";
                 try (PreparedStatement fineStmt = conn.prepareStatement(fineSql)) {
                     fineStmt.setInt(1, borrowId);
                     fineStmt.setString(2, userId);
@@ -385,7 +399,7 @@ public class BorrowDAO {
                 if (overdue < 0) overdue = 0;
                 
                 borrow.setDaysOverdue(overdue);
-                borrow.setFineAmount(overdue * 10.0);
+                borrow.setFineAmount(overdue * 1.0);
                 
                 list.add(borrow);
             }
@@ -420,7 +434,7 @@ public class BorrowDAO {
             conn.setAutoCommit(false);
             try {
                 // Generate Fines
-                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT ?, ?, DATEDIFF(CURDATE(), ?) * 10 WHERE DATEDIFF(CURDATE(), ?) > 0";
+                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT ?, ?, DATEDIFF(CURDATE(), ?) * 1 WHERE DATEDIFF(CURDATE(), ?) > 0";
                 try (PreparedStatement fineStmt = conn.prepareStatement(fineSql)) {
                     fineStmt.setInt(1, borrowId);
                     fineStmt.setString(2, userId);
