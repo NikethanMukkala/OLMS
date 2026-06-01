@@ -1,0 +1,19 @@
+# Compiled class files
+*.class
+target/
+*.war
+
+# Logs
+*.log
+scratch/
+
+# Secrets and configs (DO NOT PUSH THESE TO GITHUB)
+src/main/resources/config.properties
+src/main/resources/db.properties
+.env
+
+# IDE and OS files
+.vscode/
+.idea/
+*.iml
+.DS_Store
