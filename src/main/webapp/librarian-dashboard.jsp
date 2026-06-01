@@ -23,7 +23,7 @@
     <meta charset="UTF-8">
     <title>Librarian Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <style>
         .dashboard-container { display: flex; min-height: calc(100vh - 70px); }
         .sidebar { width: 260px; background: var(--card-bg); border-right: 1px solid var(--border-color); padding: 24px 20px; display: flex; flex-direction: column; gap: 8px; z-index: 10; font-weight: 500;}

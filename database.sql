@@ -1,5 +1,4 @@
-CREATE DATABASE IF NOT EXISTS olms;
-USE olms;
+-- Database selection omitted for cloud compatibility
 
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (

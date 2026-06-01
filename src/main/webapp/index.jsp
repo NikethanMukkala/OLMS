@@ -12,7 +12,7 @@
     <title>OLMS | Test Database Connection</title>
     <!-- Use Google Fonts for Typography -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="js/theme.js"></script>
 </head>
 <body>
