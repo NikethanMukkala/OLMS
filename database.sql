@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS borrows (
     unreserve_requested BOOLEAN DEFAULT FALSE,
     unreserve_reason VARCHAR(255),
     rating_prompted BOOLEAN DEFAULT FALSE,
+    payment_method VARCHAR(50) DEFAULT NULL,
     status ENUM('RESERVED', 'BORROWED', 'RETURNED') DEFAULT 'RESERVED',
     reservation_expiry DATETIME DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES users(login_name),
