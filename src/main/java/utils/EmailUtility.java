@@ -171,7 +171,7 @@ public class EmailUtility {
         com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
         
         com.google.gson.JsonObject sender = new com.google.gson.JsonObject();
-        sender.addProperty("email", SENDER_EMAIL != null && !SENDER_EMAIL.isEmpty() ? SENDER_EMAIL : "nikethanmk@gmail.com");
+        sender.addProperty("email", SENDER_EMAIL != null && !SENDER_EMAIL.isEmpty() ? SENDER_EMAIL : "olmsbb4@gmail.com");
         sender.addProperty("name", "OLMS");
         payload.add("sender", sender);
         
