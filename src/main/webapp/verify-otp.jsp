@@ -19,17 +19,11 @@
         <div class="login-form-container card" style="text-align: center;">
             <h2>OTP Verification</h2>
             <p>An OTP has been sent to your email. Enter it below.</p>
-            <p style="font-size: 0.8rem; color: var(--primary-color);">* Check server console if Gmail credentials aren't configured yet</p>
             
             <% String error = (String) request.getAttribute("error");
                if (error != null) { %>
-                <div style="color: var(--danger-color); background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--danger-color);"><%= utils.Sanitize.html(error) %></div>
-            <% } %>
-
-            <% String debugOtp = (String) session.getAttribute("debug_otp");
-               if (debugOtp != null) { %>
-                <div style="background: rgba(16, 185, 129, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--secondary-color); color: var(--secondary-color);">
-                    <strong>[Dev Mode] Generated OTP:</strong> <span style="font-size: 1.2rem; letter-spacing: 2px;"><%= utils.Sanitize.html(debugOtp) %></span>
+                <div class="alert alert-danger" style="text-align: center; margin-bottom: 20px;">
+                    <%= utils.Sanitize.html(error) %>
                 </div>
             <% } %>
 

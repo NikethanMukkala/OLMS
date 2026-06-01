@@ -19,22 +19,12 @@
         <div class="login-form-container card" style="text-align: center;">
             <h2>Email OTP Verification</h2>
             <p>An OTP has been sent to your email address. Enter it below to complete signup.</p>
-            <p style="font-size: 0.8rem; color: var(--primary-color);">* Check server console if email credentials aren't configured yet</p>
-            
+
             <% 
                String otpError = (String) request.getAttribute("error");
                if (otpError != null) { %>
-                <div style="color: var(--danger-color); background: rgba(239, 68, 68, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--danger-color);">
+                <div class="alert alert-danger" style="text-align: center; margin-bottom: 20px;">
                     <%= utils.Sanitize.html(otpError) %>
-                </div>
-            <% } %>
-
-            <% 
-               String debugOtp = (String) (session != null ? session.getAttribute("debug_signup_otp") : null);
-               if (debugOtp != null) { %>
-                <div style="background: rgba(16, 185, 129, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--secondary-color); color: var(--secondary-color);">
-                    <strong>&#x1F4E7; OTP sent to your email.</strong>
-                    <br><span style="font-size: 0.8rem;">(Dev Mode) OTP: <strong style="font-size: 1.2rem; letter-spacing: 2px;"><%= utils.Sanitize.html(debugOtp) %></strong></span>
                 </div>
             <% } %>
 

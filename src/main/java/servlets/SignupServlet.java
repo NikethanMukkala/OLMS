@@ -45,7 +45,6 @@ public class SignupServlet extends HttpServlet {
             HttpSession session = request.getSession();
             session.setAttribute("signup_otpHash", hashedOtp);
             session.setAttribute("signup_otpExpiry", System.currentTimeMillis() + (5 * 60 * 1000));
-            session.setAttribute("debug_signup_otp", otp);
             
             session.setAttribute("signup_loginName", loginName);
             session.setAttribute("signup_rollNo", rollNo);
