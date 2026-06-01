@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS books (
     category VARCHAR(100),
     copies_total INT NOT NULL DEFAULT 0,
     copies_available INT NOT NULL DEFAULT 0,
+    image_url VARCHAR(255),
     is_active BOOLEAN DEFAULT TRUE
 );
 
