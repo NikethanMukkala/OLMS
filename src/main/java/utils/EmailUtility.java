@@ -42,15 +42,13 @@ public class EmailUtility {
             logger.info("OTP: {}", otp);
             logger.info("===================================");
 
-            if (BREVO_API_KEY != null && !BREVO_API_KEY.trim().isEmpty()) {
-                try {
-                    sendViaBrevoApi(recipientEmail, "OLMS - Your Login OTP", "Your OTP for OLMS login is: " + otp + "\n\nThis OTP is valid for 5 minutes.", null, null);
-                } catch (Exception e) {
-                    logger.error("Failed to send OTP via Brevo API: {}", e.getMessage(), e);
-                }
-                return;
+            try {
+                sendViaBrevoApi(recipientEmail, "OLMS - Your Login OTP", "Your OTP for OLMS login is: " + otp + "\n\nThis OTP is valid for 5 minutes.", null, null);
+            } catch (Exception e) {
+                logger.error("Failed to send OTP via Brevo API: {}", e.getMessage(), e);
             }
-
+            
+            /* -- SMTP Logic Commented Out for Render Compatibility --
             Properties props = getMailProperties();
             final String safePassword = APP_PASSWORD.replace(" ", "");
 
@@ -75,20 +73,19 @@ public class EmailUtility {
             } catch (MessagingException e) {
                 logger.error("Failed to send OTP email: {}", e.getMessage(), e);
             }
+            */
         });
     }
 
     public static void sendEmail(String recipientEmail, String subject, String body) {
         CompletableFuture.runAsync(() -> {
-            if (BREVO_API_KEY != null && !BREVO_API_KEY.trim().isEmpty()) {
-                try {
-                    sendViaBrevoApi(recipientEmail, subject, body, null, null);
-                } catch (Exception e) {
-                    logger.error("Failed to send email via Brevo API: {}", e.getMessage(), e);
-                }
-                return;
+            try {
+                sendViaBrevoApi(recipientEmail, subject, body, null, null);
+            } catch (Exception e) {
+                logger.error("Failed to send email via Brevo API: {}", e.getMessage(), e);
             }
-
+            
+            /* -- SMTP Logic Commented Out for Render Compatibility --
             Properties props = getMailProperties();
             final String safePassword = APP_PASSWORD.replace(" ", "");
 
@@ -111,20 +108,19 @@ public class EmailUtility {
             } catch (Exception e) {
                 logger.error("Failed to send email to {}: {}", recipientEmail, e.getMessage(), e);
             }
+            */
         });
     }
 
     public static void sendEmailWithAttachment(String recipientEmail, String subject, String body, byte[] attachmentData, String attachmentName) {
         CompletableFuture.runAsync(() -> {
-            if (BREVO_API_KEY != null && !BREVO_API_KEY.trim().isEmpty()) {
-                try {
-                    sendViaBrevoApi(recipientEmail, subject, body, attachmentData, attachmentName);
-                } catch (Exception e) {
-                    logger.error("Failed to send email with attachment via Brevo API: {}", e.getMessage(), e);
-                }
-                return;
+            try {
+                sendViaBrevoApi(recipientEmail, subject, body, attachmentData, attachmentName);
+            } catch (Exception e) {
+                logger.error("Failed to send email with attachment via Brevo API: {}", e.getMessage(), e);
             }
-
+            
+            /* -- SMTP Logic Commented Out for Render Compatibility --
             Properties props = getMailProperties();
             final String safePassword = APP_PASSWORD.replace(" ", "");
 
@@ -160,6 +156,7 @@ public class EmailUtility {
             } catch (Exception e) {
                 logger.error("Failed to send email with attachment to {}: {}", recipientEmail, e.getMessage(), e);
             }
+            */
         });
     }
 
@@ -174,7 +171,7 @@ public class EmailUtility {
         com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
         
         com.google.gson.JsonObject sender = new com.google.gson.JsonObject();
-        sender.addProperty("email", SENDER_EMAIL != null && !SENDER_EMAIL.isEmpty() ? SENDER_EMAIL : "noreply@library.com");
+        sender.addProperty("email", SENDER_EMAIL != null && !SENDER_EMAIL.isEmpty() ? SENDER_EMAIL : "nikethanmk@gmail.com");
         sender.addProperty("name", "OLMS");
         payload.add("sender", sender);
         
