@@ -31,9 +31,13 @@ public class DBConnection {
             logger.error("Failed to load db.properties: {}", ex.getMessage(), ex);
         }
 
-        config.setJdbcUrl(props.getProperty("db.url", "jdbc:mysql://localhost:3306/olms?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"));
-        config.setUsername(props.getProperty("db.user", "root"));
-        config.setPassword(props.getProperty("db.password", ""));
+        String dbUrl = System.getenv("DB_URL") != null ? System.getenv("DB_URL") : props.getProperty("db.url", "jdbc:mysql://localhost:3306/olms?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true");
+        String dbUser = System.getenv("DB_USER") != null ? System.getenv("DB_USER") : props.getProperty("db.user", "root");
+        String dbPassword = System.getenv("DB_PASSWORD") != null ? System.getenv("DB_PASSWORD") : props.getProperty("db.password", "");
+
+        config.setJdbcUrl(dbUrl);
+        config.setUsername(dbUser);
+        config.setPassword(dbPassword);
 
         // Connection Pool Optimization
         config.addDataSourceProperty("cachePrepStmts", "true");
