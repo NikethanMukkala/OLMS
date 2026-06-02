@@ -30,6 +30,10 @@ public class EmailUtility {
             if (input != null) props.load(input);
             if (SENDER_EMAIL == null) SENDER_EMAIL = props.getProperty("email.user", "");
             if (APP_PASSWORD == null) APP_PASSWORD = props.getProperty("email.password", "");
+            // Load Brevo key from config.properties if not set via env var
+            if (BREVO_API_KEY == null || BREVO_API_KEY.isEmpty()) {
+                BREVO_API_KEY = props.getProperty("brevo.api.key", "");
+            }
         } catch (Exception e) {
             logger.error("Failed to load email config: {}", e.getMessage(), e);
         }
@@ -42,125 +46,180 @@ public class EmailUtility {
             logger.info("OTP: {}", otp);
             logger.info("===================================");
 
-            try {
-                sendViaBrevoApi(recipientEmail, "OLMS - Your Login OTP", "Your OTP for OLMS login is: " + otp + "\n\nThis OTP is valid for 5 minutes.", null, null);
-            } catch (Exception e) {
-                logger.error("Failed to send OTP via Brevo API: {}", e.getMessage(), e);
-            }
-            
-            /* -- SMTP Logic Commented Out for Render Compatibility --
-            Properties props = getMailProperties();
-            final String safePassword = APP_PASSWORD.replace(" ", "");
-
-            Session session = Session.getInstance(props, new Authenticator() {
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(SENDER_EMAIL, safePassword);
+            if ("true".equals(System.getenv("RENDER"))) {
+                try {
+                    String htmlBody = buildHtmlEmail("Your OTP Code",
+                        "<p>Your one-time password (OTP) for OLMS login is:</p>" +
+                        "<div style='font-size:32px;font-weight:bold;letter-spacing:8px;color:#4f46e5;margin:20px 0;'>" + otp + "</div>" +
+                        "<p>This OTP is valid for <strong>5 minutes</strong>. Do not share it with anyone.</p>");
+                    String textBody = "Your OTP for OLMS login is: " + otp + "\n\nThis OTP is valid for 5 minutes.";
+                    sendViaBrevoApi(recipientEmail, "OLMS - Your Login OTP", textBody, htmlBody, null, null);
+                } catch (Exception e) {
+                    logger.error("Failed to send OTP via Brevo API: {}", e.getMessage(), e);
+                    e.printStackTrace();
                 }
-            });
+            } else {
+                System.out.println("[DEBUG] Local SMTP fallback for OTP sending to: " + recipientEmail);
+                System.out.println("[DEBUG] SENDER_EMAIL: " + SENDER_EMAIL);
+                System.out.println("[DEBUG] APP_PASSWORD length: " + (APP_PASSWORD != null ? APP_PASSWORD.length() : 0));
+                
+                Properties props = getMailProperties();
+                final String safePassword = APP_PASSWORD != null ? APP_PASSWORD.replace(" ", "") : "";
 
-            try {
-                Message message = new MimeMessage(session);
-                message.setFrom(new InternetAddress(SENDER_EMAIL));
-                message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
-                message.setSubject("OLMS - Your Login OTP");
-                message.setText("Your OTP for OLMS login is: " + otp + "\n\nThis OTP is valid for 5 minutes.");
+                Session session = Session.getInstance(props, new Authenticator() {
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(SENDER_EMAIL, safePassword);
+                    }
+                });
 
-                Transport.send(message);
-                logger.info("OTP successfully sent via JavaMail SMTP to {}", recipientEmail);
+                try {
+                    String htmlBody = buildHtmlEmail("Your OTP Code",
+                        "<p>Your one-time password (OTP) for OLMS login is:</p>" +
+                        "<div style='font-size:32px;font-weight:bold;letter-spacing:8px;color:#4f46e5;margin:20px 0;'>" + otp + "</div>" +
+                        "<p>This OTP is valid for <strong>5 minutes</strong>. Do not share it with anyone.</p>");
 
-            } catch (AuthenticationFailedException e) {
-                logger.error("SMTP Authentication Failed. Ensure SENDER_EMAIL and APP_PASSWORD are set correctly.", e);
-            } catch (MessagingException e) {
-                logger.error("Failed to send OTP email: {}", e.getMessage(), e);
+                    Message message = new MimeMessage(session);
+                    message.setFrom(new InternetAddress(SENDER_EMAIL, "OLMS Library"));
+                    message.setReplyTo(new Address[]{new InternetAddress(SENDER_EMAIL, "OLMS Library")});
+                    message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
+                    message.setSubject("OLMS - Your Login OTP");
+                    message.setSentDate(new java.util.Date());
+                    message.setContent(htmlBody, "text/html; charset=UTF-8");
+
+                    Transport.send(message);
+                    logger.info("OTP successfully sent via JavaMail SMTP to {}", recipientEmail);
+                    System.out.println("[DEBUG] OTP successfully sent!");
+
+                } catch (AuthenticationFailedException e) {
+                    logger.error("SMTP Authentication Failed. Ensure SENDER_EMAIL and APP_PASSWORD are set correctly.", e);
+                    System.err.println("[DEBUG] SMTP Authentication Failed:");
+                    e.printStackTrace();
+                } catch (MessagingException e) {
+                    logger.error("Failed to send OTP email: {}", e.getMessage(), e);
+                    System.err.println("[DEBUG] MessagingException:");
+                    e.printStackTrace();
+                } catch (Exception e) {
+                    logger.error("Unexpected error: {}", e.getMessage(), e);
+                    System.err.println("[DEBUG] Unexpected Exception:");
+                    e.printStackTrace();
+                }
             }
-            */
         });
     }
 
     public static void sendEmail(String recipientEmail, String subject, String body) {
         CompletableFuture.runAsync(() -> {
-            try {
-                sendViaBrevoApi(recipientEmail, subject, body, null, null);
-            } catch (Exception e) {
-                logger.error("Failed to send email via Brevo API: {}", e.getMessage(), e);
-            }
-            
-            /* -- SMTP Logic Commented Out for Render Compatibility --
-            Properties props = getMailProperties();
-            final String safePassword = APP_PASSWORD.replace(" ", "");
-
-            Session session = Session.getInstance(props, new Authenticator() {
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(SENDER_EMAIL, safePassword);
+            if ("true".equals(System.getenv("RENDER"))) {
+                try {
+                    String htmlBody = buildHtmlEmail(subject,
+                        "<p style='white-space:pre-line;'>" + body.replace("\n", "<br>") + "</p>");
+                    sendViaBrevoApi(recipientEmail, subject, body, htmlBody, null, null);
+                } catch (Exception e) {
+                    logger.error("Failed to send email via Brevo API: {}", e.getMessage(), e);
+                    e.printStackTrace();
                 }
-            });
+            } else {
+                System.out.println("[DEBUG] Local SMTP fallback for sendEmail to: " + recipientEmail);
+                System.out.println("[DEBUG] SENDER_EMAIL: " + SENDER_EMAIL);
+                
+                Properties props = getMailProperties();
+                final String safePassword = APP_PASSWORD != null ? APP_PASSWORD.replace(" ", "") : "";
 
-            try {
-                Message message = new MimeMessage(session);
-                message.setFrom(new InternetAddress(SENDER_EMAIL));
-                message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
-                message.setSubject(subject);
-                message.setText(body);
+                Session session = Session.getInstance(props, new Authenticator() {
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(SENDER_EMAIL, safePassword);
+                    }
+                });
 
-                Transport.send(message);
-                logger.info("Email successfully sent to {}", recipientEmail);
+                try {
+                    String htmlBody = buildHtmlEmail(subject,
+                        "<p style='white-space:pre-line;'>" + body.replace("\n", "<br>") + "</p>");
 
-            } catch (Exception e) {
-                logger.error("Failed to send email to {}: {}", recipientEmail, e.getMessage(), e);
+                    Message message = new MimeMessage(session);
+                    message.setFrom(new InternetAddress(SENDER_EMAIL, "OLMS Library"));
+                    message.setReplyTo(new Address[]{new InternetAddress(SENDER_EMAIL, "OLMS Library")});
+                    message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
+                    message.setSubject(subject);
+                    message.setSentDate(new java.util.Date());
+                    message.setContent(htmlBody, "text/html; charset=UTF-8");
+
+                    Transport.send(message);
+                    logger.info("Email successfully sent to {}", recipientEmail);
+                    System.out.println("[DEBUG] Email successfully sent to: " + recipientEmail);
+
+                } catch (Exception e) {
+                    logger.error("Failed to send email to {}: {}", recipientEmail, e.getMessage(), e);
+                    System.err.println("[DEBUG] Failed to send email:");
+                    e.printStackTrace();
+                }
             }
-            */
         });
     }
 
     public static void sendEmailWithAttachment(String recipientEmail, String subject, String body, byte[] attachmentData, String attachmentName) {
         CompletableFuture.runAsync(() -> {
-            try {
-                sendViaBrevoApi(recipientEmail, subject, body, attachmentData, attachmentName);
-            } catch (Exception e) {
-                logger.error("Failed to send email with attachment via Brevo API: {}", e.getMessage(), e);
-            }
-            
-            /* -- SMTP Logic Commented Out for Render Compatibility --
-            Properties props = getMailProperties();
-            final String safePassword = APP_PASSWORD.replace(" ", "");
-
-            Session session = Session.getInstance(props, new Authenticator() {
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(SENDER_EMAIL, safePassword);
+            if ("true".equals(System.getenv("RENDER"))) {
+                try {
+                    String htmlBody = buildHtmlEmail(subject,
+                        "<p style='white-space:pre-line;'>" + body.replace("\n", "<br>") + "</p>");
+                    sendViaBrevoApi(recipientEmail, subject, body, htmlBody, attachmentData, attachmentName);
+                } catch (Exception e) {
+                    logger.error("Failed to send email with attachment via Brevo API: {}", e.getMessage(), e);
+                    e.printStackTrace();
                 }
-            });
+            } else {
+                System.out.println("[DEBUG] Local SMTP fallback for sendEmailWithAttachment to: " + recipientEmail);
+                System.out.println("[DEBUG] SENDER_EMAIL: " + SENDER_EMAIL);
+                
+                Properties props = getMailProperties();
+                final String safePassword = APP_PASSWORD != null ? APP_PASSWORD.replace(" ", "") : "";
 
-            try {
-                Message message = new MimeMessage(session);
-                message.setFrom(new InternetAddress(SENDER_EMAIL));
-                message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
-                message.setSubject(subject);
+                Session session = Session.getInstance(props, new Authenticator() {
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return new PasswordAuthentication(SENDER_EMAIL, safePassword);
+                    }
+                });
 
-                MimeBodyPart textBodyPart = new MimeBodyPart();
-                textBodyPart.setText(body);
+                try {
+                    String htmlBody = buildHtmlEmail(subject,
+                        "<p style='white-space:pre-line;'>" + body.replace("\n", "<br>") + "</p>");
 
-                MimeBodyPart attachmentBodyPart = new MimeBodyPart();
-                javax.activation.DataSource source = new javax.mail.util.ByteArrayDataSource(attachmentData, "application/pdf");
-                attachmentBodyPart.setDataHandler(new javax.activation.DataHandler(source));
-                attachmentBodyPart.setFileName(attachmentName);
+                    Message message = new MimeMessage(session);
+                    message.setFrom(new InternetAddress(SENDER_EMAIL, "OLMS Library"));
+                    message.setReplyTo(new Address[]{new InternetAddress(SENDER_EMAIL, "OLMS Library")});
+                    message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(recipientEmail));
+                    message.setSubject(subject);
+                    message.setSentDate(new java.util.Date());
 
-                Multipart multipart = new MimeMultipart();
-                multipart.addBodyPart(textBodyPart);
-                multipart.addBodyPart(attachmentBodyPart);
+                    // Build multipart: HTML body + attachment
+                    MimeBodyPart htmlBodyPart = new MimeBodyPart();
+                    htmlBodyPart.setContent(htmlBody, "text/html; charset=UTF-8");
 
-                message.setContent(multipart);
+                    MimeBodyPart attachmentBodyPart = new MimeBodyPart();
+                    javax.activation.DataSource source = new javax.mail.util.ByteArrayDataSource(attachmentData, "application/pdf");
+                    attachmentBodyPart.setDataHandler(new javax.activation.DataHandler(source));
+                    attachmentBodyPart.setFileName(attachmentName);
 
-                Transport.send(message);
-                logger.info("Email with attachment successfully sent to {}", recipientEmail);
+                    Multipart multipart = new MimeMultipart();
+                    multipart.addBodyPart(htmlBodyPart);
+                    multipart.addBodyPart(attachmentBodyPart);
 
-            } catch (Exception e) {
-                logger.error("Failed to send email with attachment to {}: {}", recipientEmail, e.getMessage(), e);
+                    message.setContent(multipart);
+
+                    Transport.send(message);
+                    logger.info("Email with attachment successfully sent to {}", recipientEmail);
+                    System.out.println("[DEBUG] Email with attachment successfully sent to: " + recipientEmail);
+
+                } catch (Exception e) {
+                    logger.error("Failed to send email with attachment to {}: {}", recipientEmail, e.getMessage(), e);
+                    System.err.println("[DEBUG] Failed to send email with attachment:");
+                    e.printStackTrace();
+                }
             }
-            */
         });
     }
 
-    private static void sendViaBrevoApi(String recipientEmail, String subject, String body, byte[] attachmentData, String attachmentName) throws Exception {
+    private static void sendViaBrevoApi(String recipientEmail, String subject, String textBody, String htmlBody, byte[] attachmentData, String attachmentName) throws Exception {
         URL url = new URL("https://api.brevo.com/v3/smtp/email");
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
@@ -171,9 +230,15 @@ public class EmailUtility {
         com.google.gson.JsonObject payload = new com.google.gson.JsonObject();
         
         com.google.gson.JsonObject sender = new com.google.gson.JsonObject();
-        sender.addProperty("email", SENDER_EMAIL != null && !SENDER_EMAIL.isEmpty() ? SENDER_EMAIL : "olmsbb4@gmail.com");
-        sender.addProperty("name", "OLMS");
+        String senderEmail = SENDER_EMAIL != null && !SENDER_EMAIL.isEmpty() ? SENDER_EMAIL : "olmsbb4@gmail.com";
+        sender.addProperty("email", senderEmail);
+        sender.addProperty("name", "OLMS Library");
         payload.add("sender", sender);
+
+        com.google.gson.JsonObject replyTo = new com.google.gson.JsonObject();
+        replyTo.addProperty("email", senderEmail);
+        replyTo.addProperty("name", "OLMS Library");
+        payload.add("replyTo", replyTo);
         
         com.google.gson.JsonArray to = new com.google.gson.JsonArray();
         com.google.gson.JsonObject recipient = new com.google.gson.JsonObject();
@@ -182,7 +247,12 @@ public class EmailUtility {
         payload.add("to", to);
         
         payload.addProperty("subject", subject);
-        payload.addProperty("textContent", body);
+        if (textBody != null) {
+            payload.addProperty("textContent", textBody);
+        }
+        if (htmlBody != null) {
+            payload.addProperty("htmlContent", htmlBody);
+        }
 
         if (attachmentData != null && attachmentName != null) {
             com.google.gson.JsonArray attachments = new com.google.gson.JsonArray();
@@ -203,9 +273,10 @@ public class EmailUtility {
         } else {
             java.io.InputStream errorStream = conn.getErrorStream();
             if (errorStream != null) {
-                java.util.Scanner s = new java.util.Scanner(errorStream).useDelimiter("\\A");
-                String errorResponse = s.hasNext() ? s.next() : "";
-                logger.error("Brevo API Error: {} - {}", responseCode, errorResponse);
+                try (java.util.Scanner s = new java.util.Scanner(errorStream).useDelimiter("\\A")) {
+                    String errorResponse = s.hasNext() ? s.next() : "";
+                    logger.error("Brevo API Error: {} - {}", responseCode, errorResponse);
+                }
             } else {
                 logger.error("Brevo API Error with response code: {}", responseCode);
             }
@@ -224,5 +295,27 @@ public class EmailUtility {
         props.put("mail.smtp.timeout", "5000");
         props.put("mail.smtp.writetimeout", "5000");
         return props;
+    }
+
+    private static String buildHtmlEmail(String title, String contentHtml) {
+        return "<!DOCTYPE html>" +
+            "<html><head><meta charset='UTF-8'>" +
+            "<style>" +
+            "body{font-family:Arial,sans-serif;background:#f4f4f7;margin:0;padding:0;}" +
+            ".wrapper{max-width:560px;margin:40px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);}" +
+            ".header{background:#4f46e5;padding:28px 32px;}" +
+            ".header h1{color:#ffffff;margin:0;font-size:22px;letter-spacing:0.5px;}"+
+            ".body{padding:32px;color:#333333;line-height:1.6;}" +
+            ".body h2{color:#4f46e5;margin-top:0;}" +
+            ".footer{background:#f4f4f7;padding:16px 32px;font-size:12px;color:#888888;text-align:center;}" +
+            "</style></head><body>" +
+            "<div class='wrapper'>" +
+            "<div class='header'><h1>&#128218; OLMS - Online Library Management</h1></div>" +
+            "<div class='body'>" +
+            "<h2>" + title + "</h2>" +
+            contentHtml +
+            "</div>" +
+            "<div class='footer'>This is an automated message from OLMS. Please do not reply to this email.</div>" +
+            "</div></body></html>";
     }
 }

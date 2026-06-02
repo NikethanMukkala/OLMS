@@ -129,6 +129,8 @@ public class BookServlet extends HttpServlet {
             List<Borrow> myBorrows = borrowDAO.getStudentBorrows(userId);
             request.setAttribute("myBorrows", myBorrows);
             request.setAttribute("viewType", "dues");
+        } else if ("chatbot".equals(view)) {
+            request.setAttribute("viewType", "chatbot");
         } else {
             List<Book> books;
             if ((search != null && !search.trim().isEmpty()) || (category != null && !category.trim().isEmpty())) {

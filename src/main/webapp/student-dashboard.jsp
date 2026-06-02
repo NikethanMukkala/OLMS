@@ -46,6 +46,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="${pageContext.request.contextPath}/css/style.css">
     <script src="js/theme.js"></script>
+    <script src="js/auth-animations.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .dashboard-container { display: flex; min-height: 100vh; }
@@ -129,6 +130,7 @@
                 <a href="books" class="nav-item <%= "books".equals(viewType) ? "active" : "" %>">Dashboard</a>
                 <a href="books?view=reservations" class="nav-item <%= "reservations".equals(viewType) ? "active" : "" %>">My Reservations</a>
                 <a href="books?view=dues" class="nav-item <%= "dues".equals(viewType) ? "active" : "" %>">Borrowed Books & Dues</a>
+                <a href="books?view=chatbot" class="nav-item <%= "chatbot".equals(viewType) ? "active" : "" %>">💬 AI Chatbot</a>
                 <a href="books?view=history" class="nav-item <%= "history".equals(viewType) ? "active" : "" %>">📜 Transaction History</a>
             </nav>
             <div style="margin-top: auto;">
@@ -143,7 +145,7 @@
                     <button id="hamburger-btn" class="hamburger-menu" title="Toggle Sidebar">☰</button>
                     <h2 style="margin: 0;">Welcome back, <%= utils.Sanitize.html((String) session.getAttribute("user_id")) %>! 👋</h2>
                 </div>
-                <div class="user-info">
+                <div class="user-info" style="margin-right: 65px;">
                     Role: <span style="color: var(--primary-color);"><%= session.getAttribute("role") %></span>
                 </div>
             </div>
@@ -156,6 +158,7 @@
             <% } %>
 
             <!-- Stats -->
+            <% if (!"chatbot".equals(viewType)) { %>
             <div class="stats-grid">
                 <div class="stat-card hide-on-mobile">
                     <div class="stat-icon primary">📚</div>
@@ -186,6 +189,7 @@
                     </div>
                 </div>
             </div>
+            <% } %>
 
             <% if ("books".equals(viewType)) { %>
             <!-- Search Filter -->
@@ -442,9 +446,325 @@
                     }
                 });
             </script>
+            <% } else if ("chatbot".equals(viewType)) { %>
+            <!-- AI Chatbot View -->
+            <style>
+                /* Floating books canvas inside chatbot */
+                #chatbot-bg-canvas {
+                    position: fixed;
+                    top: 0; left: 0;
+                    width: 100vw; height: 100vh;
+                    overflow: hidden;
+                    z-index: 0;
+                    pointer-events: none;
+                }
+                #chatbot-panel {
+                    position: relative;
+                    z-index: 1;
+                    display: flex;
+                    flex-direction: column;
+                    height: calc(100vh - 160px);
+                    width: 100%;
+                    max-width: 900px;
+                    margin: 0 auto;
+                }
+                .chat-date-separator {
+                    text-align: center;
+                    position: relative;
+                    margin: 1.5rem 0;
+                    color: var(--text-secondary);
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    letter-spacing: 1px;
+                }
+                .chat-date-separator::before, .chat-date-separator::after {
+                    content: "";
+                    position: absolute;
+                    top: 50%;
+                    width: 40%;
+                    height: 1px;
+                    background: var(--border-color);
+                    opacity: 0.5;
+                }
+                .chat-date-separator::before { left: 0; }
+                .chat-date-separator::after { right: 0; }
+
+                #chatbot-messages {
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 1rem 0;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                    scrollbar-width: thin;
+                    scrollbar-color: var(--border-color) transparent;
+                }
+
+                .chat-msg-wrapper {
+                    display: flex;
+                    gap: 1rem;
+                    max-width: 85%;
+                }
+                .chat-msg-wrapper.bot { align-self: flex-start; }
+                .chat-msg-wrapper.user { align-self: flex-end; flex-direction: row-reverse; }
+
+                .chat-avatar {
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 10px;
+                    flex-shrink: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1rem;
+                }
+                .bot-avatar { background: linear-gradient(135deg, #a78bfa, #818cf8); }
+                .user-avatar { background: var(--primary-color); }
+
+                .chat-meta {
+                    margin-bottom: 0.4rem;
+                    display: flex;
+                    align-items: baseline;
+                    gap: 0.5rem;
+                }
+                .chat-msg-wrapper.user .chat-meta { justify-content: flex-end; }
+                .chat-name { font-weight: 600; font-size: 0.85rem; color: var(--text-primary); }
+                .chat-time { font-size: 0.7rem; color: var(--text-secondary); }
+
+                .chat-bubble {
+                    padding: 1rem 1.2rem;
+                    border-radius: 16px;
+                    font-size: 0.95rem;
+                    line-height: 1.6;
+                    white-space: pre-wrap;
+                    word-break: break-word;
+                }
+                .bot-bubble {
+                    background: rgba(255, 255, 255, 0.06);
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    color: var(--text-primary);
+                    border-top-left-radius: 4px;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                }
+                [data-theme="light"] .bot-bubble {
+                    background: rgba(255, 255, 255, 0.85);
+                    border: 1px solid rgba(0,0,0,0.07);
+                    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+                }
+                .user-bubble {
+                    background: linear-gradient(135deg, rgba(108,99,255,0.18), rgba(129,140,248,0.12));
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    border: 1px solid rgba(108,99,255,0.2);
+                    color: var(--text-primary);
+                    border-top-right-radius: 4px;
+                }
+                [data-theme="light"] .user-bubble {
+                    background: var(--surface-color);
+                    border: 1px solid rgba(0,0,0,0.07);
+                }
+
+                .chat-suggestions {
+                    display: flex;
+                    gap: 0.8rem;
+                    margin-top: 1rem;
+                    flex-wrap: wrap;
+                }
+                .suggestion-chip {
+                    background: rgba(255,255,255,0.05);
+                    border: 1px solid rgba(255,255,255,0.15);
+                    color: var(--text-secondary);
+                    padding: 0.45rem 1rem;
+                    border-radius: 20px;
+                    font-size: 0.83rem;
+                    cursor: pointer;
+                    backdrop-filter: blur(10px);
+                    transition: all 0.2s;
+                }
+                .suggestion-chip:hover {
+                    background: rgba(108,99,255,0.15);
+                    border-color: rgba(108,99,255,0.4);
+                    color: var(--primary-color);
+                    transform: translateY(-2px);
+                }
+                [data-theme="light"] .suggestion-chip {
+                    background: rgba(0,0,0,0.03);
+                    border: 1px solid rgba(0,0,0,0.1);
+                }
+
+                #chatbot-input-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.8rem;
+                    padding: 0.55rem 1rem;
+                    background: rgba(255, 255, 255, 0.05);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border-radius: 30px;
+                    margin-top: 1rem;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+                }
+                [data-theme="light"] #chatbot-input-container {
+                    background: rgba(255, 255, 255, 0.85);
+                    border: 1px solid rgba(0,0,0,0.1);
+                }
+
+                #chatbot-input {
+                    flex: 1;
+                    background: transparent;
+                    border: none;
+                    color: var(--text-primary);
+                    font-size: 0.95rem;
+                    outline: none;
+                    padding: 0.5rem 0.2rem;
+                }
+                #chatbot-input::placeholder { color: var(--text-secondary); opacity: 0.6; }
+
+                #chatbot-send {
+                    background: linear-gradient(135deg, #a78bfa, #818cf8);
+                    color: white;
+                    border: none;
+                    width: 40px; height: 40px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    box-shadow: 0 4px 12px rgba(108,99,255,0.4);
+                    flex-shrink: 0;
+                }
+                #chatbot-send:hover { transform: scale(1.1); box-shadow: 0 6px 18px rgba(108,99,255,0.55); }
+                #chatbot-send svg { width: 18px; height: 18px; fill: white; margin-left: 2px; }
+            </style>
+
+            <!-- Floating books canvas - same as login page -->
+            <div class="auth-bg-mesh"></div>
+            <div class="books-bg-canvas" id="chatbot-bg-canvas"></div>
+
+            <div id="chatbot-panel">
+                <div class="chat-date-separator">TODAY</div>
+                <div id="chatbot-messages"></div>
+                <div id="chatbot-input-container">
+                    <input id="chatbot-input" type="text" placeholder="Type a command... (e.g. search Java)" autocomplete="off">
+                    <button id="chatbot-send">
+                        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    const input = document.getElementById('chatbot-input');
+                    const sendBtn = document.getElementById('chatbot-send');
+                    const messages = document.getElementById('chatbot-messages');
+                    if (!messages) return;
+
+                    // Init floating book particles on chatbot background canvas
+                    if (window.AuthAnimations && document.getElementById('chatbot-bg-canvas')) {
+                        window.AuthAnimations.initBookParticles('#chatbot-bg-canvas', 14);
+                    }
+
+                    window.sendPresetMessage = function(text) {
+                        input.value = text;
+                        sendMessage();
+                    };
+
+                    function appendMsg(text, type, isWelcome) {
+                        isWelcome = isWelcome || false;
+                        const wrapper = document.createElement('div');
+                        const isBot = type.indexOf('bot') !== -1;
+                        wrapper.className = 'chat-msg-wrapper ' + (isBot ? 'bot' : 'user');
+
+                        var avatar = isBot
+                            ? '<div class="chat-avatar bot-avatar">📚</div>'
+                            : '<div class="chat-avatar user-avatar">👤</div>';
+                        var meta = isBot
+                            ? '<div class="chat-meta"><span class="chat-name">LibraryBot Assistant</span> <span class="chat-time">Just now</span></div>'
+                            : '<div class="chat-meta"><span class="chat-time">Just now</span> <span class="chat-name">You</span></div>';
+
+                        var bubbleClass = isBot ? 'bot-bubble' : 'user-bubble';
+                        var contentHtml = text
+                            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                            .replace(/`(.*?)`/g, '<code style="background:rgba(99,102,241,0.12);padding:1px 5px;border-radius:4px;">$1</code>');
+
+                        var suggestionsHtml = '';
+                        if (isWelcome) {
+                            suggestionsHtml = '<div class="chat-suggestions">'
+                                + '<button class="suggestion-chip" onclick="sendPresetMessage(\'Search Programming books\')">📖 Programming books</button>'
+                                + '<button class="suggestion-chip" onclick="sendPresetMessage(\'My reservations\')">🔖 My reservations</button>'
+                                + '<button class="suggestion-chip" onclick="sendPresetMessage(\'Library hours\')">🕐 Library hours</button>'
+                                + '</div>';
+                        }
+
+                        var styleAttr = type.indexOf('typing') !== -1 ? ' style="font-style:italic;opacity:0.65;"' : '';
+                        wrapper.innerHTML = (isBot ? avatar : '')
+                            + '<div class="chat-content" style="max-width:100%;">'
+                            + meta
+                            + '<div class="chat-bubble ' + bubbleClass + '"' + styleAttr + '>' + contentHtml + '</div>'
+                            + suggestionsHtml
+                            + '</div>'
+                            + (!isBot ? avatar : '');
+
+                        messages.appendChild(wrapper);
+                        messages.scrollTop = messages.scrollHeight;
+                        return wrapper;
+                    }
+
+                    function sendMessage() {
+                        var text = input.value.trim();
+                        if (!text) return;
+                        appendMsg(text, 'user');
+                        input.value = '';
+                        var typingEl = appendMsg('Typing...', 'bot typing');
+
+                        fetch('<%= request.getContextPath() %>/chatbot', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: text })
+                        })
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            typingEl.remove();
+                            appendMsg(data.reply || 'Sorry, something went wrong.', 'bot');
+                        })
+                        .catch(function() {
+                            typingEl.remove();
+                            appendMsg('❌ Could not reach LibraryBot. Please try again.', 'bot');
+                        });
+                    }
+
+                    sendBtn.addEventListener('click', sendMessage);
+                    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') sendMessage(); });
+
+                    // Auto-load welcome message from bot on page load
+                    var typingEl = appendMsg('Typing...', 'bot typing');
+                    fetch('<%= request.getContextPath() %>/chatbot', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: "Introduce yourself briefly and ask me what I need." })
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        typingEl.remove();
+                        appendMsg(data.reply || "Hello! I'm LibraryBot, your AI assistant for the Online Library Management System. I can help you with various library-related tasks, such as searching for books, checking your reservations, or viewing library statistics.", 'bot', true);
+                    })
+                    .catch(function() {
+                        typingEl.remove();
+                        appendMsg("Hello! I'm LibraryBot, your AI assistant for the Online Library Management System. I can help you with various library-related tasks, such as searching for books, checking your reservations, or viewing library statistics.", 'bot', true);
+                    });
+                });
+            </script>
+
             <% } else if ("history".equals(viewType)) { %>
             <!-- History View -->
             <h3 style="margin-bottom: 1.5rem;">Transaction History</h3>
+
             <div style="overflow-x: auto; background: var(--surface-color); border-radius: 12px; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
                 <table style="width: 100%; border-collapse: collapse; min-width: 600px;">
                     <thead style="background: rgba(67, 97, 238, 0.05); border-bottom: 2px solid var(--border-color);">
@@ -496,195 +816,7 @@
         });
     </script>
 
-    <!-- LibraryBot Chat Widget -->
-    <style>
-        #chatbot-btn {
-            position: fixed;
-            bottom: 80px;
-            right: 22px;
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-color), #818cf8);
-            color: white;
-            font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 4px 20px rgba(67,97,238,0.45);
-            z-index: 9999;
-            transition: transform 0.2s;
-        }
-        #chatbot-btn:hover { transform: scale(1.1); }
-        #chatbot-panel {
-            position: fixed;
-            bottom: 145px;
-            right: 20px;
-            width: 360px;
-            max-width: calc(100vw - 30px);
-            height: 500px;
-            max-height: calc(100vh - 160px);
-            background: var(--surface-color);
-            border: 1px solid var(--border-color);
-            border-radius: 18px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-            display: none;
-            flex-direction: column;
-            z-index: 9998;
-            overflow: hidden;
-        }
-        #chatbot-panel.open { display: flex; animation: slideUp 0.2s ease; }
-        @keyframes slideUp { from { opacity:0; transform: translateY(20px);} to { opacity:1; transform: translateY(0);} }
-        #chatbot-header {
-            padding: 1rem 1.2rem;
-            background: linear-gradient(135deg, var(--primary-color), #818cf8);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-radius: 18px 18px 0 0;
-        }
-        #chatbot-header strong { font-size: 1rem; }
-        #chatbot-header span { font-size: 0.78rem; opacity: 0.85; }
-        #chatbot-close { background: transparent; border: none; color: white; font-size: 1.4rem; cursor: pointer; line-height: 1; }
-        #chatbot-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem 1rem 0.5rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-        .chat-msg { max-width: 88%; padding: 0.65rem 0.9rem; border-radius: 14px; font-size: 0.88rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
-        .chat-msg.bot { background: var(--background-color); border: 1px solid var(--border-color); align-self: flex-start; border-bottom-left-radius: 4px; }
-        .chat-msg.user { background: var(--primary-color); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
-        .chat-msg.typing { color: var(--text-secondary); font-style: italic; }
-        #chatbot-input-row {
-            display: flex;
-            gap: 0.5rem;
-            padding: 0.85rem 1rem;
-            border-top: 1px solid var(--border-color);
-        }
-        #chatbot-input {
-            flex: 1;
-            padding: 0.6rem 0.9rem;
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            background: var(--input-bg);
-            color: var(--text-primary);
-            font-size: 0.9rem;
-            outline: none;
-        }
-        #chatbot-input:focus { border-color: var(--primary-color); }
-        #chatbot-send {
-            padding: 0.6rem 1rem;
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background 0.2s;
-        }
-        #chatbot-send:hover { background: #3652e8; }
-    </style>
 
-    <button id="chatbot-btn" title="LibraryBot – Your assistant">💬</button>
-
-    <div id="chatbot-panel">
-        <div id="chatbot-header">
-            <div>
-                <strong>📚 LibraryBot</strong><br>
-                <span>Your personal library assistant</span>
-            </div>
-            <button id="chatbot-close">✕</button>
-        </div>
-        <div id="chatbot-messages">
-        </div>
-        <div id="chatbot-input-row">
-            <input id="chatbot-input" type="text" placeholder="Type a command... (e.g. search Java)" autocomplete="off">
-            <button id="chatbot-send">➤</button>
-        </div>
-    </div>
-
-    <script>
-        (function() {
-            const btn = document.getElementById('chatbot-btn');
-            const panel = document.getElementById('chatbot-panel');
-            const closeBtn = document.getElementById('chatbot-close');
-            const input = document.getElementById('chatbot-input');
-            const sendBtn = document.getElementById('chatbot-send');
-            const messages = document.getElementById('chatbot-messages');
-
-            btn.addEventListener('click', () => {
-                const wasClosed = !panel.classList.contains('open');
-                panel.classList.toggle('open');
-                if (panel.classList.contains('open')) {
-                    input.focus();
-                    if (wasClosed && messages.children.length === 0) {
-                        const typingEl = appendMsg('Typing...', 'bot typing');
-                        fetch('<%= request.getContextPath() %>/chatbot', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ message: "Introduce yourself briefly and ask me what I need." })
-                        })
-                        .then(r => r.json())
-                        .then(data => {
-                            typingEl.remove();
-                            appendMsg(data.reply || 'Hi!', 'bot');
-                        })
-                        .catch(() => {
-                            typingEl.remove();
-                            appendMsg('❌ Could not reach LibraryBot. Please try again.', 'bot');
-                        });
-                    }
-                }
-            });
-            closeBtn.addEventListener('click', () => panel.classList.remove('open'));
-
-            function appendMsg(text, type) {
-                const div = document.createElement('div');
-                div.className = 'chat-msg ' + type;
-                // Bold **text** support
-                div.innerHTML = text
-                    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                    .replace(/`(.*?)`/g, '<code style="background:rgba(99,102,241,0.12);padding:1px 5px;border-radius:4px;">$1</code>');
-                messages.appendChild(div);
-                messages.scrollTop = messages.scrollHeight;
-                return div;
-            }
-
-            function sendMessage() {
-                const text = input.value.trim();
-                if (!text) return;
-                appendMsg(text, 'user');
-                input.value = '';
-                const typingEl = appendMsg('Typing...', 'bot typing');
-
-                fetch('<%= request.getContextPath() %>/chatbot', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    typingEl.remove();
-                    appendMsg(data.reply || 'Sorry, something went wrong.', 'bot');
-                })
-                .catch(() => {
-                    typingEl.remove();
-                    appendMsg('❌ Could not reach LibraryBot. Please try again.', 'bot');
-                });
-            }
-
-            sendBtn.addEventListener('click', sendMessage);
-            input.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
-        })();
-    </script>
 
     <!-- Payment Modal -->
     <div id="paymentModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">

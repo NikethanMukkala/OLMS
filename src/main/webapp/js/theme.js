@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     toggleBtn.style.cssText = `
-        position: fixed; bottom: 24px; right: 24px; 
+        position: fixed; top: 24px; right: 24px; 
         z-index: 10001; width: 56px; height: 56px;
         background: var(--surface-color); border-radius: 50%;
         border: 2px solid var(--border-color); cursor: pointer;
