@@ -18,6 +18,7 @@ public class DBConnection {
             Class.forName("com.mysql.cj.jdbc.Driver");
         } catch (ClassNotFoundException e) {
             logger.error("JDBC Driver not found: {}", e.getMessage(), e);
+            throw new ExceptionInInitializerError("MySQL JDBC Driver not found. Ensure mysql-connector-j is in WEB-INF/lib. " + e.getMessage());
         }
 
         java.util.Properties props = new java.util.Properties();
@@ -47,7 +48,17 @@ public class DBConnection {
         config.setMinimumIdle(2);
         config.setIdleTimeout(30000);
 
-        ds = new HikariDataSource(config);
+        try {
+            ds = new HikariDataSource(config);
+            logger.info("HikariCP connection pool initialized successfully. URL: {}", dbUrl);
+        } catch (Exception e) {
+            logger.error("Failed to initialize HikariCP connection pool. URL={}, User={}, Error: {}", dbUrl, dbUser, e.getMessage(), e);
+            throw new ExceptionInInitializerError(
+                "Database connection pool failed to initialize. " +
+                "Check that MySQL is running, the database 'olms' exists, and credentials in db.properties are correct. " +
+                "Caused by: " + e.getMessage()
+            );
+        }
     }
 
     private DBConnection() {
