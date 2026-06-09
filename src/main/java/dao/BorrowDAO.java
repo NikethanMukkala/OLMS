@@ -149,7 +149,7 @@ public class BorrowDAO {
     public List<Borrow> getStudentBorrows(String userId) {
         expireOldReservations();
         List<Borrow> list = new ArrayList<>();
-        String sql = "SELECT b.borrow_id, b.book_id, b.issue_date, b.due_date, b.return_date, b.fine_paid, b.unreserve_requested, b.payment_method, b.status, b.reservation_expiry, " +
+        String sql = "SELECT b.borrow_id, b.book_id, b.issue_date, b.due_date, b.return_date, b.fine_paid, b.unreserve_requested, b.payment_method, b.status, b.reservation_expiry, b.fine_amount, " +
                      "bk.title, bk.author " +
                      "FROM borrows b JOIN books bk ON b.book_id = bk.book_id " +
                      "WHERE b.user_id = ? ORDER BY b.issue_date DESC";
@@ -180,7 +180,7 @@ public class BorrowDAO {
                     if (overdue < 0) overdue = 0;
                     
                     borrow.setDaysOverdue(overdue);
-                    borrow.setFineAmount(overdue * 1.0);
+                    borrow.setFineAmount(rs.getDouble("fine_amount") + (overdue * 1.0));
                     
                     list.add(borrow);
                 }
@@ -192,7 +192,7 @@ public class BorrowDAO {
     }
 
     public Borrow getBorrowById(int borrowId) {
-        String sql = "SELECT b.borrow_id, b.user_id, b.book_id, b.issue_date, b.due_date, b.return_date, b.fine_paid, b.unreserve_requested, b.payment_method, b.status, b.reservation_expiry, " +
+        String sql = "SELECT b.borrow_id, b.user_id, b.book_id, b.issue_date, b.due_date, b.return_date, b.fine_paid, b.unreserve_requested, b.payment_method, b.status, b.reservation_expiry, b.fine_amount, " +
                      "bk.title, bk.author " +
                      "FROM borrows b JOIN books bk ON b.book_id = bk.book_id " +
                      "WHERE b.borrow_id = ?";
@@ -224,7 +224,7 @@ public class BorrowDAO {
                     if (overdue < 0) overdue = 0;
                     
                     borrow.setDaysOverdue(overdue);
-                    borrow.setFineAmount(overdue * 1.0);
+                    borrow.setFineAmount(rs.getDouble("fine_amount") + (overdue * 1.0));
                     return borrow;
                 }
             }
@@ -264,7 +264,7 @@ public class BorrowDAO {
 
     public double getFineForUser(String userId) {
         double total = 0;
-        String sql = "SELECT due_date, return_date FROM borrows WHERE user_id = ? AND due_date < IFNULL(return_date, CURDATE()) AND fine_paid = FALSE";
+        String sql = "SELECT due_date, return_date, fine_amount FROM borrows WHERE user_id = ? AND fine_paid = FALSE";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, userId);
@@ -274,8 +274,11 @@ public class BorrowDAO {
                     long due = rs.getDate("due_date").getTime();
                     long endTime = rs.getDate("return_date") != null ? rs.getDate("return_date").getTime() : now;
                     long overdueDays = (long) Math.ceil((endTime - due) / (1000.0 * 60 * 60 * 24));
+                    double dbFine = rs.getDouble("fine_amount");
                     if (overdueDays > 0) {
-                        total += overdueDays * 1.0;
+                        total += dbFine + (overdueDays * 1.0);
+                    } else if (dbFine > 0) {
+                        total += dbFine;
                     }
                 }
             }
@@ -310,12 +313,9 @@ public class BorrowDAO {
             conn.setAutoCommit(false);
             try {
                 // Generate Fines
-                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT ?, ?, DATEDIFF(CURDATE(), ?) * 1 WHERE DATEDIFF(CURDATE(), ?) > 0";
+                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT borrow_id, user_id, fine_amount + (GREATEST(0, DATEDIFF(CURDATE(), due_date)) * 1) FROM borrows WHERE borrow_id = ? AND (fine_amount > 0 OR DATEDIFF(CURDATE(), due_date) > 0)";
                 try (PreparedStatement fineStmt = conn.prepareStatement(fineSql)) {
                     fineStmt.setInt(1, borrowId);
-                    fineStmt.setString(2, userId);
-                    fineStmt.setDate(3, dueDate);
-                    fineStmt.setDate(4, dueDate);
                     fineStmt.executeUpdate();
                 }
 
@@ -368,7 +368,7 @@ public class BorrowDAO {
     public List<Borrow> getAllBorrows() {
         expireOldReservations();
         List<Borrow> list = new ArrayList<>();
-        String sql = "SELECT b.borrow_id, b.user_id, b.book_id, b.issue_date, b.due_date, b.return_date, b.fine_paid, b.unreserve_requested, b.payment_method, b.status, b.reservation_expiry, " +
+        String sql = "SELECT b.borrow_id, b.user_id, b.book_id, b.issue_date, b.due_date, b.return_date, b.fine_paid, b.unreserve_requested, b.payment_method, b.status, b.reservation_expiry, b.fine_amount, " +
                      "bk.title, bk.author " +
                      "FROM borrows b JOIN books bk ON b.book_id = bk.book_id " +
                      "ORDER BY b.issue_date DESC";
@@ -399,7 +399,7 @@ public class BorrowDAO {
                 if (overdue < 0) overdue = 0;
                 
                 borrow.setDaysOverdue(overdue);
-                borrow.setFineAmount(overdue * 1.0);
+                borrow.setFineAmount(rs.getDouble("fine_amount") + (overdue * 1.0));
                 
                 list.add(borrow);
             }
@@ -434,12 +434,9 @@ public class BorrowDAO {
             conn.setAutoCommit(false);
             try {
                 // Generate Fines
-                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT ?, ?, DATEDIFF(CURDATE(), ?) * 1 WHERE DATEDIFF(CURDATE(), ?) > 0";
+                String fineSql = "INSERT INTO fines (borrow_id, user_id, amount) SELECT borrow_id, user_id, fine_amount + (GREATEST(0, DATEDIFF(CURDATE(), due_date)) * 1) FROM borrows WHERE borrow_id = ? AND (fine_amount > 0 OR DATEDIFF(CURDATE(), due_date) > 0)";
                 try (PreparedStatement fineStmt = conn.prepareStatement(fineSql)) {
                     fineStmt.setInt(1, borrowId);
-                    fineStmt.setString(2, userId);
-                    fineStmt.setDate(3, dueDate);
-                    fineStmt.setDate(4, dueDate);
                     fineStmt.executeUpdate();
                 }
 
