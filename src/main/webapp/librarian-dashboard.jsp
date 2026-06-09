@@ -100,6 +100,16 @@
                         <button type="submit" class="btn btn-primary" style="width: auto;">Save Limit</button>
                     </form>
                 </div>
+
+                <div style="margin-top: 20px; background: rgba(239, 68, 68, 0.05); padding: 24px; border-radius: 16px; border: 1px solid rgba(239, 68, 68, 0.2); box-shadow: var(--shadow-sm);">
+                    <h3 style="color: var(--danger-color);">Test Actions</h3>
+                    <form action="librarian-dashboard" method="post" style="display: flex; gap: 10px; align-items: center; margin-top: 15px;" onsubmit="return showCustomConfirm('Add 1 Rs due to all currently borrowed books? (Testing purposes only)', this)">
+                        <input type="hidden" name="csrfToken" value="${sessionScope.csrfToken}">
+                        <input type="hidden" name="action" value="test_add_due">
+                        <p style="margin: 0; color: var(--text-secondary); flex: 1;">Increment fine amount by 1 Rs for all currently borrowed books.</p>
+                        <button type="submit" class="btn btn-secondary" style="width: auto; border-color: var(--danger-color); color: var(--danger-color);">+1 Rs Due</button>
+                    </form>
+                </div>
             <% } else if ("books".equals(view)) { 
                 List<Book> books = (List<Book>) request.getAttribute("books");
             %>

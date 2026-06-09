@@ -70,6 +70,14 @@ public class LibrarianDashboardServlet extends HttpServlet {
             } else {
                 session.setAttribute("error", "Failed to update library capacity.");
             }
+        } else if ("test_add_due".equals(action)) {
+            try (java.sql.Connection conn = utils.DBConnection.getConnection();
+                 java.sql.PreparedStatement ps = conn.prepareStatement("UPDATE borrows SET fine_amount = fine_amount + 1.00 WHERE status = 'BORROWED'")) {
+                int rows = ps.executeUpdate();
+                session.setAttribute("success", "Test action: Added 1 Rs due to " + rows + " currently borrowed books.");
+            } catch (Exception e) {
+                session.setAttribute("error", "Test action failed: " + e.getMessage());
+            }
         }
         response.sendRedirect("librarian-dashboard");
     }
